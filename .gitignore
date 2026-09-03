@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output and framework caches
+dist/
+.next/
+out/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Local deployment/runtime state
+.vercel/
+.wrangler/
+.dev.vars*
+
+# Environment files (keep documented examples)
+.env*
+!.env.example
+
+# Editor and operating-system files
+.DS_Store
+*.log
+

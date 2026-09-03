@@ -1,0 +1,195 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-sans-ui);
+  --font-serif: var(--font-serif-editorial);
+  --font-mono: var(--font-mono-ui);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: #f4f0e8;
+  --foreground: #28241f;
+  --card: #fffdf8;
+  --card-foreground: #28241f;
+  --popover: #fffdf8;
+  --popover-foreground: #28241f;
+  --primary: #2e5945;
+  --primary-foreground: #fffdf4;
+  --secondary: #ebe4d7;
+  --secondary-foreground: #3d382f;
+  --muted: #ebe4d7;
+  --muted-foreground: #746c60;
+  --accent: #e8d9a9;
+  --accent-foreground: #493d24;
+  --destructive: #b3453d;
+  --border: #ddd5c8;
+  --input: #d3cabd;
+  --ring: #6d8c7b;
+  --radius: 0.75rem;
+  --font-sans-ui: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif-editorial: Iowan Old Style, Baskerville, "Times New Roman", serif;
+  --font-mono-ui: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.dark {
+  --background: #1f2420;
+  --foreground: #f6f0e5;
+  --card: #292e29;
+  --card-foreground: #f6f0e5;
+  --popover: #292e29;
+  --popover-foreground: #f6f0e5;
+  --primary: #93b7a4;
+  --primary-foreground: #15251c;
+  --secondary: #343a34;
+  --secondary-foreground: #eee6da;
+  --muted: #343a34;
+  --muted-foreground: #b4ada1;
+  --accent: #6e603b;
+  --accent-foreground: #fff6d6;
+  --destructive: #e47e73;
+  --border: #454b45;
+  --input: #4d544d;
+  --ring: #93b7a4;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans-ui);
+    min-width: 320px;
+  }
+
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.shelf-scene {
+  position: relative;
+  margin-inline: auto;
+  max-width: 340px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #5d2b13;
+  box-shadow: inset 0 0 0 1px rgb(75 37 17 / 20%), 0 16px 32px rgb(70 42 25 / 18%);
+}
+
+.shelf-scene > img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.shelf-row {
+  position: absolute;
+  left: 15.4%;
+  right: 15.2%;
+  display: flex;
+  align-items: flex-end;
+  gap: 1.3%;
+  padding-inline: 1%;
+}
+
+.shelf-row-1 {
+  bottom: 78.2%;
+  height: 10.6%;
+}
+
+.shelf-book {
+  position: relative;
+  height: 92%;
+  width: 15.5%;
+  min-width: 22px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 1px 3px 1px 1px;
+  box-shadow: inset 3px 0 rgb(255 255 255 / 12%), inset -3px 0 rgb(0 0 0 / 18%), 2px 2px 5px rgb(0 0 0 / 35%);
+  transform-origin: bottom;
+  cursor: pointer;
+  transition: transform 180ms ease, filter 180ms ease;
+}
+
+.shelf-book:nth-child(2) {
+  height: 82%;
+  transform: rotate(-2deg);
+}
+
+.shelf-book:nth-child(3) {
+  height: 97%;
+}
+
+.shelf-book:hover,
+.shelf-book:focus-visible {
+  transform: translateY(-5px);
+  filter: brightness(1.08);
+}
+
+.shelf-book span {
+  position: absolute;
+  inset: 8% 16%;
+  writing-mode: vertical-rl;
+  overflow: hidden;
+  font-family: var(--font-serif-editorial);
+  font-size: clamp(6px, 1.6vw, 9px);
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .shelf-scene {
+    max-width: 300px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
