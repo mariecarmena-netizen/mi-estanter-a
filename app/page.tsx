@@ -410,12 +410,19 @@ export default function Home() {
     event.preventDefault();
     if (!pendingSession) return;
     const form = new FormData(event.currentTarget);
-    const pagesRead = Math.max(1, Number(form.get('pagesRead')) || 1);
     const book = books.find((item) => item.id === pendingSession.bookId);
     if (!book) return;
-    const remainingPages = Math.max(0, book.totalPages - book.currentPage);
-    const validPages = Math.min(pagesRead, remainingPages);
-    const nextPage = Math.min(book.totalPages, book.currentPage + validPages);
+    const pageReached = Number(form.get('currentPage'));
+    const nextPage = Math.min(
+      book.totalPages,
+      Math.max(
+        book.currentPage + 1,
+        Number.isFinite(pageReached)
+          ? Math.trunc(pageReached)
+          : book.currentPage + 1,
+      ),
+    );
+    const validPages = nextPage - book.currentPage;
     const completed = nextPage >= book.totalPages;
     const endedAtIso = new Date(pendingSession.endedAt).toISOString();
 
@@ -1142,7 +1149,7 @@ export default function Home() {
                   ? formatReadingTime(pendingSession.durationSeconds)
                   : ''}
               </strong>
-              . ¿Cuántas páginas has avanzado?
+              . ¿En qué página estás?
             </DialogDescription>
           </DialogHeader>
           <form
@@ -1150,23 +1157,19 @@ export default function Home() {
             className="grid gap-3"
             onSubmit={saveSession}
           >
-            <Label htmlFor="session-pages">Páginas leídas en esta sesión</Label>
+            <Label htmlFor="session-current-page">Página actual</Label>
             <Input
-              id="session-pages"
-              name="pagesRead"
+              id="session-current-page"
+              name="currentPage"
               type="number"
               inputMode="numeric"
-              min="1"
-              max={
-                currentBook
-                  ? currentBook.totalPages - currentBook.currentPage
-                  : undefined
-              }
+              min={currentBook ? currentBook.currentPage + 1 : 1}
+              max={currentBook?.totalPages}
               defaultValue={
                 currentBook
                   ? Math.min(
-                      10,
-                      currentBook.totalPages - currentBook.currentPage,
+                      currentBook.currentPage + 10,
+                      currentBook.totalPages,
                     )
                   : 1
               }
@@ -1175,8 +1178,8 @@ export default function Home() {
             />
             {currentBook && (
               <p className="text-center text-xs text-muted-foreground">
-                Te quedan {currentBook.totalPages - currentBook.currentPage}{' '}
-                páginas.
+                Estabas en la página {currentBook.currentPage} de{' '}
+                {currentBook.totalPages}.
               </p>
             )}
           </form>
