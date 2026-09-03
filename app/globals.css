@@ -147,6 +147,10 @@
   transition: transform 180ms ease, filter 180ms ease;
 }
 
+.shelf-book > img {
+  object-position: center;
+}
+
 .shelf-book:nth-child(2) {
   height: 82%;
   transform: rotate(-2deg);

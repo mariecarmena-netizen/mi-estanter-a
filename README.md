@@ -4,7 +4,7 @@ Una aplicación personal para medir el tiempo de lectura, registrar páginas, es
 
 ## Funciones
 
-- Añadir varios libros con título, autor, páginas totales y página actual.
+- Añadir varios libros con título, autor, ISBN, portada, páginas totales y página actual.
 - Cronómetro de lectura que continúa aunque recargues la página.
 - Registro de páginas al terminar cada sesión.
 - Estimación automática del tiempo y la fecha de finalización según tu ritmo real.
