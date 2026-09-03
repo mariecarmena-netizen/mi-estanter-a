@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+.pnpm-store/
 
 # Build output and framework caches
 dist/
@@ -21,4 +22,3 @@ coverage/
 # Editor and operating-system files
 .DS_Store
 *.log
-
