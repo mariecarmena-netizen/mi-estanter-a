@@ -12,7 +12,6 @@ import {
   Library,
   Play,
   Plus,
-  RotateCcw,
   Sparkles,
   Square,
   Target,
@@ -85,99 +84,12 @@ const BOOK_COLORS = [
   ['#3b355e', '#decfa0'],
 ] as const;
 const SHELF_BOTTOMS = [78.2, 65.1, 51.8, 38.8, 25.4, 12.1];
-
-const DEMO_BOOKS: Book[] = [
-  {
-    id: 'demo-junco',
-    title: 'El infinito en un junco',
-    author: 'Irene Vallejo',
-    totalPages: 452,
-    currentPage: 168,
-    status: 'reading',
-    color: '#304c3d',
-    accent: '#f5df9d',
-    createdAt: '2026-08-25T18:00:00.000Z',
-  },
-  {
-    id: 'demo-nada',
-    title: 'Nada',
-    author: 'Carmen Laforet',
-    totalPages: 272,
-    currentPage: 272,
-    status: 'completed',
-    color: '#253a52',
-    accent: '#d6ba78',
-    createdAt: '2026-07-02T18:00:00.000Z',
-    completedAt: '2026-07-18T19:10:00.000Z',
-  },
-  {
-    id: 'demo-persuasion',
-    title: 'Persuasión',
-    author: 'Jane Austen',
-    totalPages: 248,
-    currentPage: 248,
-    status: 'completed',
-    color: '#734a35',
-    accent: '#ead5ad',
-    createdAt: '2026-07-22T18:00:00.000Z',
-    completedAt: '2026-08-05T20:10:00.000Z',
-  },
-  {
-    id: 'demo-ficciones',
-    title: 'Ficciones',
-    author: 'Jorge Luis Borges',
-    totalPages: 224,
-    currentPage: 224,
-    status: 'completed',
-    color: '#315c4a',
-    accent: '#efe1b9',
-    createdAt: '2026-08-08T18:00:00.000Z',
-    completedAt: '2026-08-22T17:40:00.000Z',
-  },
-];
-
-const DEMO_SESSIONS: ReadingSession[] = [
-  {
-    id: 'session-1',
-    bookId: 'demo-junco',
-    startedAt: '2026-09-01T18:00:00.000Z',
-    endedAt: '2026-09-01T18:46:00.000Z',
-    durationSeconds: 46 * 60,
-    pagesRead: 25,
-  },
-  {
-    id: 'session-2',
-    bookId: 'demo-junco',
-    startedAt: '2026-09-03T07:00:00.000Z',
-    endedAt: '2026-09-03T07:24:00.000Z',
-    durationSeconds: 24 * 60,
-    pagesRead: 14,
-  },
-  {
-    id: 'session-3',
-    bookId: 'demo-nada',
-    startedAt: '2026-07-18T18:00:00.000Z',
-    endedAt: '2026-07-18T19:10:00.000Z',
-    durationSeconds: 70 * 60,
-    pagesRead: 38,
-  },
-  {
-    id: 'session-4',
-    bookId: 'demo-persuasion',
-    startedAt: '2026-08-05T19:15:00.000Z',
-    endedAt: '2026-08-05T20:10:00.000Z',
-    durationSeconds: 55 * 60,
-    pagesRead: 31,
-  },
-  {
-    id: 'session-5',
-    bookId: 'demo-ficciones',
-    startedAt: '2026-08-22T16:54:00.000Z',
-    endedAt: '2026-08-22T17:40:00.000Z',
-    durationSeconds: 46 * 60,
-    pagesRead: 29,
-  },
-];
+const DEMO_BOOK_IDS = new Set([
+  'demo-junco',
+  'demo-nada',
+  'demo-persuasion',
+  'demo-ficciones',
+]);
 
 function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -193,7 +105,9 @@ function formatTimer(totalSeconds: number) {
   const hours = Math.floor(safeSeconds / 3600);
   const minutes = Math.floor((safeSeconds % 3600) / 60);
   const seconds = safeSeconds % 60;
-  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+  return [hours, minutes, seconds]
+    .map((value) => String(value).padStart(2, '0'))
+    .join(':');
 }
 
 function formatReadingTime(totalSeconds: number) {
@@ -228,18 +142,32 @@ function formatFullDate(value: string | number | Date) {
 
 function getBookEstimate(book: Book, sessions: ReadingSession[]) {
   const usefulSessions = sessions.filter(
-    (session) => session.bookId === book.id && session.pagesRead > 0 && session.durationSeconds > 0,
+    (session) =>
+      session.bookId === book.id &&
+      session.pagesRead > 0 &&
+      session.durationSeconds > 0,
   );
-  const measuredPages = usefulSessions.reduce((sum, session) => sum + session.pagesRead, 0);
-  const measuredSeconds = usefulSessions.reduce((sum, session) => sum + session.durationSeconds, 0);
+  const measuredPages = usefulSessions.reduce(
+    (sum, session) => sum + session.pagesRead,
+    0,
+  );
+  const measuredSeconds = usefulSessions.reduce(
+    (sum, session) => sum + session.durationSeconds,
+    0,
+  );
   const remainingPages = Math.max(0, book.totalPages - book.currentPage);
 
   if (!measuredPages || !measuredSeconds) return null;
 
   const remainingSeconds = (measuredSeconds / measuredPages) * remainingPages;
-  const readingDays = new Set(usefulSessions.map((session) => localDateKey(session.endedAt))).size;
+  const readingDays = new Set(
+    usefulSessions.map((session) => localDateKey(session.endedAt)),
+  ).size;
   const pagesPerReadingDay = measuredPages / Math.max(1, readingDays);
-  const daysRemaining = Math.max(1, Math.ceil(remainingPages / pagesPerReadingDay));
+  const daysRemaining = Math.max(
+    1,
+    Math.ceil(remainingPages / pagesPerReadingDay),
+  );
   const finishDate = new Date();
   finishDate.setDate(finishDate.getDate() + daysRemaining);
 
@@ -252,12 +180,16 @@ function getBookEstimate(book: Book, sessions: ReadingSession[]) {
 }
 
 export default function Home() {
-  const [books, setBooks] = useState<Book[]>(DEMO_BOOKS);
-  const [sessions, setSessions] = useState<ReadingSession[]>(DEMO_SESSIONS);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [sessions, setSessions] = useState<ReadingSession[]>([]);
   const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null);
-  const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
-  const [selectedBookId, setSelectedBookId] = useState<string>('demo-junco');
-  const [selectedShelfBookId, setSelectedShelfBookId] = useState<string | null>(null);
+  const [pendingSession, setPendingSession] = useState<PendingSession | null>(
+    null,
+  );
+  const [selectedBookId, setSelectedBookId] = useState<string>('');
+  const [selectedShelfBookId, setSelectedShelfBookId] = useState<string | null>(
+    null,
+  );
   const [addBookOpen, setAddBookOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const [tick, setTick] = useState(0);
@@ -274,10 +206,31 @@ export default function Home() {
             activeTimer?: ActiveTimer | null;
             selectedBookId?: string;
           };
-          if (Array.isArray(parsed.books)) setBooks(parsed.books);
-          if (Array.isArray(parsed.sessions)) setSessions(parsed.sessions);
-          if (parsed.activeTimer) setActiveTimer(parsed.activeTimer);
-          if (typeof parsed.selectedBookId === 'string') setSelectedBookId(parsed.selectedBookId);
+          const personalBooks = Array.isArray(parsed.books)
+            ? parsed.books.filter((book) => !DEMO_BOOK_IDS.has(book.id))
+            : [];
+          const personalBookIds = new Set(personalBooks.map((book) => book.id));
+          const personalSessions = Array.isArray(parsed.sessions)
+            ? parsed.sessions.filter(
+                (session) => !DEMO_BOOK_IDS.has(session.bookId),
+              )
+            : [];
+          const savedSelectedBookId =
+            typeof parsed.selectedBookId === 'string' &&
+            personalBookIds.has(parsed.selectedBookId)
+              ? parsed.selectedBookId
+              : (personalBooks.find((book) => book.status === 'reading')?.id ??
+                '');
+
+          setBooks(personalBooks);
+          setSessions(personalSessions);
+          setSelectedBookId(savedSelectedBookId);
+          if (
+            parsed.activeTimer &&
+            personalBookIds.has(parsed.activeTimer.bookId)
+          ) {
+            setActiveTimer(parsed.activeTimer);
+          }
         }
       } catch {
         setNotice('No se pudieron recuperar los datos guardados.');
@@ -320,14 +273,23 @@ export default function Home() {
     const timerBook = activeTimer
       ? readingBooks.find((book) => book.id === activeTimer.bookId)
       : undefined;
-    return timerBook ?? readingBooks.find((book) => book.id === selectedBookId) ?? readingBooks[0];
+    return (
+      timerBook ??
+      readingBooks.find((book) => book.id === selectedBookId) ??
+      readingBooks[0]
+    );
   }, [activeTimer, readingBooks, selectedBookId]);
-  const currentEstimate = currentBook ? getBookEstimate(currentBook, sessions) : null;
+  const currentEstimate = currentBook
+    ? getBookEstimate(currentBook, sessions)
+    : null;
   const elapsedSeconds = activeTimer
     ? Math.max(0, Math.floor((tick - activeTimer.startedAt) / 1000))
     : 0;
   const progress = currentBook
-    ? Math.min(100, Math.round((currentBook.currentPage / currentBook.totalPages) * 100))
+    ? Math.min(
+        100,
+        Math.round((currentBook.currentPage / currentBook.totalPages) * 100),
+      )
     : 0;
 
   const todayKey = localDateKey(new Date());
@@ -338,10 +300,15 @@ export default function Home() {
   const monthPages = sessions
     .filter((session) => {
       const endedAt = new Date(session.endedAt);
-      return endedAt.getFullYear() === now.getFullYear() && endedAt.getMonth() === now.getMonth();
+      return (
+        endedAt.getFullYear() === now.getFullYear() &&
+        endedAt.getMonth() === now.getMonth()
+      );
     })
     .reduce((sum, session) => sum + session.pagesRead, 0);
-  const selectedShelfBook = books.find((book) => book.id === selectedShelfBookId);
+  const selectedShelfBook = books.find(
+    (book) => book.id === selectedShelfBookId,
+  );
 
   function startReading(bookId: string) {
     setSelectedBookId(bookId);
@@ -357,7 +324,10 @@ export default function Home() {
       bookId: activeTimer.bookId,
       startedAt: activeTimer.startedAt,
       endedAt,
-      durationSeconds: Math.max(1, Math.round((endedAt - activeTimer.startedAt) / 1000)),
+      durationSeconds: Math.max(
+        1,
+        Math.round((endedAt - activeTimer.startedAt) / 1000),
+      ),
     });
     setActiveTimer(null);
   }
@@ -411,11 +381,15 @@ export default function Home() {
       const nextReadingBook = readingBooks.find((item) => item.id !== book.id);
       setSelectedBookId(nextReadingBook?.id ?? '');
       window.setTimeout(() => {
-        document.querySelector('#estanteria')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document
+          .querySelector('#estanteria')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 250);
       setNotice(`¡${book.title} ya está en tu estantería!`);
     } else {
-      setNotice(`Sesión guardada: ${validPages} páginas en ${formatReadingTime(pendingSession.durationSeconds)}.`);
+      setNotice(
+        `Sesión guardada: ${validPages} páginas en ${formatReadingTime(pendingSession.durationSeconds)}.`,
+      );
     }
     setPendingSession(null);
   }
@@ -426,7 +400,10 @@ export default function Home() {
     const title = getFormText(form, 'title');
     const author = getFormText(form, 'author');
     const totalPages = Math.max(1, Number(form.get('totalPages')) || 1);
-    const currentPage = Math.min(totalPages, Math.max(0, Number(form.get('currentPage')) || 0));
+    const currentPage = Math.min(
+      totalPages,
+      Math.max(0, Number(form.get('currentPage')) || 0),
+    );
     if (!title || !author) return;
     const completed = currentPage >= totalPages;
     const [color, accent] = BOOK_COLORS[books.length % BOOK_COLORS.length];
@@ -446,53 +423,76 @@ export default function Home() {
     setBooks((current) => [...current, book]);
     if (!completed) setSelectedBookId(book.id);
     setAddBookOpen(false);
-    setNotice(completed ? 'Libro añadido a la estantería.' : 'Libro añadido. Ya puedes iniciar una sesión.');
+    setNotice(
+      completed
+        ? 'Libro añadido a la estantería.'
+        : 'Libro añadido. Ya puedes iniciar una sesión.',
+    );
     event.currentTarget.reset();
-  }
-
-  function resetDemo() {
-    const confirmed = window.confirm('¿Quieres borrar tus datos y recuperar los libros de ejemplo?');
-    if (!confirmed) return;
-    setBooks(DEMO_BOOKS);
-    setSessions(DEMO_SESSIONS);
-    setActiveTimer(null);
-    setPendingSession(null);
-    setSelectedBookId('demo-junco');
-    setNotice('Biblioteca de ejemplo restaurada.');
   }
 
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl">
         <div className="mx-auto flex h-18 max-w-[1440px] items-center justify-between px-5 lg:px-10">
-          <a className="flex items-center gap-3" href="#inicio" aria-label="Mi Estantería, inicio">
+          <a
+            className="flex items-center gap-3"
+            href="#inicio"
+            aria-label="Mi Estantería, inicio"
+          >
             <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm">
               <Library className="size-4.5" />
             </span>
-            <span className="hidden font-serif text-xl font-semibold tracking-tight sm:inline">Mi Estantería</span>
+            <span className="hidden font-serif text-xl font-semibold tracking-tight sm:inline">
+              Mi Estantería
+            </span>
           </a>
-          <nav className="hidden items-center gap-1 rounded-full bg-secondary/70 p-1 md:flex" aria-label="Principal">
-            <a className="rounded-full bg-card px-4 py-2 text-sm font-semibold shadow-sm" href="#inicio">Leyendo</a>
-            <a className="rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground" href="#estanteria">Estantería</a>
+          <nav
+            className="hidden items-center gap-1 rounded-full bg-secondary/70 p-1 md:flex"
+            aria-label="Principal"
+          >
+            <a
+              className="rounded-full bg-card px-4 py-2 text-sm font-semibold shadow-sm"
+              href="#inicio"
+            >
+              Leyendo
+            </a>
+            <a
+              className="rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              href="#estanteria"
+            >
+              Estantería
+            </a>
           </nav>
-          <Button className="h-10 rounded-full px-4 shadow-sm" onClick={() => setAddBookOpen(true)}>
+          <Button
+            className="h-10 rounded-full px-4 shadow-sm"
+            onClick={() => setAddBookOpen(true)}
+          >
             <Plus data-icon="inline-start" />
             Añadir libro
           </Button>
         </div>
       </header>
 
-      <div id="inicio" className="mx-auto max-w-[1440px] px-5 py-8 lg:px-10 lg:py-12">
+      <div
+        id="inicio"
+        className="mx-auto max-w-[1440px] px-5 py-8 lg:px-10 lg:py-12"
+      >
         <section className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-primary">
               <Sparkles className="size-3.5" /> Tu rincón de lectura
             </p>
-            <h1 className="font-serif text-4xl font-medium tracking-tight sm:text-5xl">¿Seguimos leyendo?</h1>
+            <h1 className="font-serif text-4xl font-medium tracking-tight sm:text-5xl">
+              ¿Seguimos leyendo?
+            </h1>
           </div>
           <p className="max-w-sm text-sm leading-6 text-muted-foreground">
             Cada minuto y cada página cuentan. Hoy llevas{' '}
-            <strong className="text-foreground">{formatReadingTime(todaySeconds)}</strong>.
+            <strong className="text-foreground">
+              {formatReadingTime(todaySeconds)}
+            </strong>
+            .
           </p>
         </section>
 
@@ -503,49 +503,81 @@ export default function Home() {
                 <div className="grid lg:grid-cols-[210px_minmax(0,1fr)]">
                   <div
                     className="book-cover relative min-h-[250px] overflow-hidden p-7 lg:min-h-[390px]"
-                    style={{ backgroundColor: currentBook.color, color: currentBook.accent }}
+                    style={{
+                      backgroundColor: currentBook.color,
+                      color: currentBook.accent,
+                    }}
                   >
                     <span className="absolute -right-16 -top-12 size-52 rounded-full border border-current opacity-20" />
                     <span className="absolute -right-4 top-9 size-32 rounded-full border border-current opacity-25" />
-                    <p className="relative text-[10px] font-semibold uppercase tracking-[0.25em] opacity-70">{currentBook.author}</p>
-                    <h2 className="relative mt-12 max-w-[160px] font-serif text-3xl leading-[0.98]">{currentBook.title}</h2>
-                    <BookOpen className="absolute bottom-7 left-7 size-8 opacity-60" strokeWidth={1.4} />
+                    <p className="relative text-[10px] font-semibold uppercase tracking-[0.25em] opacity-70">
+                      {currentBook.author}
+                    </p>
+                    <h2 className="relative mt-12 max-w-[160px] font-serif text-3xl leading-[0.98]">
+                      {currentBook.title}
+                    </h2>
+                    <BookOpen
+                      className="absolute bottom-7 left-7 size-8 opacity-60"
+                      strokeWidth={1.4}
+                    />
                   </div>
 
                   <div className="flex min-w-0 flex-col p-6 sm:p-8 lg:p-10">
                     <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
                       <div className="min-w-0">
-                        <Badge variant="secondary" className="mb-3 bg-accent text-accent-foreground">
+                        <Badge
+                          variant="secondary"
+                          className="mb-3 bg-accent text-accent-foreground"
+                        >
                           {activeTimer ? 'Leyendo ahora' : 'Próxima lectura'}
                         </Badge>
-                        <h2 className="max-w-xl truncate font-serif text-3xl font-medium tracking-tight">{currentBook.title}</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">{currentBook.author}</p>
+                        <h2 className="max-w-xl truncate font-serif text-3xl font-medium tracking-tight">
+                          {currentBook.title}
+                        </h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {currentBook.author}
+                        </p>
                       </div>
-                      <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-secondary-foreground">{progress}% completado</span>
+                      <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-secondary-foreground">
+                        {progress}% completado
+                      </span>
                     </div>
 
                     <Progress value={progress} locale="es-ES" className="gap-2">
                       <ProgressLabel className="text-xs text-muted-foreground">
-                        {currentBook.currentPage} de {currentBook.totalPages} páginas
+                        {currentBook.currentPage} de {currentBook.totalPages}{' '}
+                        páginas
                       </ProgressLabel>
                       <ProgressValue className="text-xs">
-                        {() => `${currentBook.totalPages - currentBook.currentPage} por leer`}
+                        {() =>
+                          `${currentBook.totalPages - currentBook.currentPage} por leer`
+                        }
                       </ProgressValue>
                     </Progress>
 
                     <div className="my-8 grid grid-cols-2 gap-3">
                       <div className="rounded-2xl bg-secondary/70 p-4">
                         <Clock3 className="mb-4 size-4 text-primary" />
-                        <p className="text-xs text-muted-foreground">Tiempo restante</p>
+                        <p className="text-xs text-muted-foreground">
+                          Tiempo restante
+                        </p>
                         <p className="mt-1 font-serif text-xl font-semibold">
-                          {currentEstimate ? formatReadingTime(currentEstimate.remainingSeconds) : 'Por calcular'}
+                          {currentEstimate
+                            ? formatReadingTime(
+                                currentEstimate.remainingSeconds,
+                              )
+                            : 'Por calcular'}
                         </p>
                       </div>
                       <div className="rounded-2xl bg-secondary/70 p-4">
                         <Target className="mb-4 size-4 text-primary" />
-                        <p className="text-xs text-muted-foreground">Fecha estimada</p>
+                        <p className="text-xs text-muted-foreground">
+                          Fecha estimada
+                        </p>
                         <p className="mt-1 font-serif text-xl font-semibold">
-                          {currentEstimate ? formatShortDate(currentEstimate.finishDate) : 'Tras 1ª sesión'}
+                          {currentEstimate
+                            ? formatShortDate(currentEstimate.finishDate)
+                            : 'Tras 1ª sesión'}
                         </p>
                       </div>
                     </div>
@@ -558,7 +590,10 @@ export default function Home() {
                           className="h-12 flex-1 rounded-xl bg-[#b44a42] text-white shadow-[0_10px_24px_rgba(139,47,41,0.18)] hover:bg-[#9f3f38]"
                           onClick={stopReading}
                         >
-                          <Square className="fill-current" data-icon="inline-start" />
+                          <Square
+                            className="fill-current"
+                            data-icon="inline-start"
+                          />
                           Detener y guardar
                         </Button>
                       ) : (
@@ -567,12 +602,19 @@ export default function Home() {
                           className="h-12 flex-1 rounded-xl text-base shadow-[0_10px_24px_rgba(44,77,59,0.2)]"
                           onClick={() => startReading(currentBook.id)}
                         >
-                          <Play className="fill-current" data-icon="inline-start" />
+                          <Play
+                            className="fill-current"
+                            data-icon="inline-start"
+                          />
                           Iniciar lectura
                         </Button>
                       )}
-                      <div className={`rounded-xl border px-5 py-2.5 text-center ${activeTimer ? 'border-primary/40 bg-primary/5' : 'border-border'}`}>
-                        <p className="font-mono text-xl font-semibold tabular-nums">{formatTimer(elapsedSeconds)}</p>
+                      <div
+                        className={`rounded-xl border px-5 py-2.5 text-center ${activeTimer ? 'border-primary/40 bg-primary/5' : 'border-border'}`}
+                      >
+                        <p className="font-mono text-xl font-semibold tabular-nums">
+                          {formatTimer(elapsedSeconds)}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -584,9 +626,17 @@ export default function Home() {
                   <span className="mx-auto mb-5 grid size-14 place-items-center rounded-2xl bg-secondary text-primary">
                     <BookOpen className="size-6" />
                   </span>
-                  <h2 className="font-serif text-3xl font-semibold">Tu próxima historia empieza aquí</h2>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">Añade el libro que estás leyendo y registra tu ritmo página a página.</p>
-                  <Button className="mt-6 h-11 rounded-xl px-5" onClick={() => setAddBookOpen(true)}>
+                  <h2 className="font-serif text-3xl font-semibold">
+                    Tu próxima historia empieza aquí
+                  </h2>
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                    Añade el libro que estás leyendo y registra tu ritmo página
+                    a página.
+                  </p>
+                  <Button
+                    className="mt-6 h-11 rounded-xl px-5"
+                    onClick={() => setAddBookOpen(true)}
+                  >
                     <Plus data-icon="inline-start" /> Añadir mi primer libro
                   </Button>
                 </div>
@@ -599,7 +649,10 @@ export default function Home() {
                 [String(monthPages), 'Páginas este mes'],
                 [String(sessions.length), 'Sesiones totales'],
               ].map(([value, label]) => (
-                <div key={label} className="rounded-2xl border border-border bg-card p-5">
+                <div
+                  key={label}
+                  className="rounded-2xl border border-border bg-card p-5"
+                >
                   <p className="font-serif text-2xl font-semibold">{value}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{label}</p>
                 </div>
@@ -607,29 +660,52 @@ export default function Home() {
             </div>
 
             {readingBooks.length > 1 && (
-              <section className="rounded-[24px] border border-border bg-card p-5 sm:p-6" aria-labelledby="reading-list-title">
+              <section
+                className="rounded-[24px] border border-border bg-card p-5 sm:p-6"
+                aria-labelledby="reading-list-title"
+              >
                 <div className="mb-4 flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">En lectura</p>
-                    <h2 id="reading-list-title" className="mt-1 font-serif text-2xl font-semibold">Tus libros abiertos</h2>
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                      En lectura
+                    </p>
+                    <h2
+                      id="reading-list-title"
+                      className="mt-1 font-serif text-2xl font-semibold"
+                    >
+                      Tus libros abiertos
+                    </h2>
                   </div>
-                  <span className="text-sm text-muted-foreground">{readingBooks.length}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {readingBooks.length}
+                  </span>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {readingBooks.map((book) => {
-                    const bookProgress = Math.round((book.currentPage / book.totalPages) * 100);
+                    const bookProgress = Math.round(
+                      (book.currentPage / book.totalPages) * 100,
+                    );
                     const isCurrent = currentBook?.id === book.id;
                     return (
                       <button
                         key={book.id}
                         className={`group flex items-center gap-4 rounded-2xl border p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm ${isCurrent ? 'border-primary/40 bg-primary/5' : 'border-border bg-background/40'}`}
                         onClick={() => setSelectedBookId(book.id)}
-                        disabled={Boolean(activeTimer && activeTimer.bookId !== book.id)}
+                        disabled={Boolean(
+                          activeTimer && activeTimer.bookId !== book.id,
+                        )}
                       >
-                        <span className="h-16 w-11 shrink-0 rounded-sm shadow-sm" style={{ backgroundColor: book.color }} />
+                        <span
+                          className="h-16 w-11 shrink-0 rounded-sm shadow-sm"
+                          style={{ backgroundColor: book.color }}
+                        />
                         <span className="min-w-0 flex-1">
-                          <strong className="block truncate font-serif text-lg">{book.title}</strong>
-                          <span className="mt-1 block text-xs text-muted-foreground">{bookProgress}% · pág. {book.currentPage}</span>
+                          <strong className="block truncate font-serif text-lg">
+                            {book.title}
+                          </strong>
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            {bookProgress}% · pág. {book.currentPage}
+                          </span>
                         </span>
                         <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                       </button>
@@ -640,16 +716,29 @@ export default function Home() {
             )}
           </div>
 
-          <aside id="estanteria" className="scroll-mt-24 rounded-[28px] border border-border bg-card p-4 shadow-[0_18px_60px_rgba(61,43,31,0.08)] sm:p-6">
+          <aside
+            id="estanteria"
+            className="scroll-mt-24 rounded-[28px] border border-border bg-card p-4 shadow-[0_18px_60px_rgba(61,43,31,0.08)] sm:p-6"
+          >
             <div className="mb-5 flex items-end justify-between px-1">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">Tu colección</p>
-                <h2 className="mt-1 font-serif text-2xl font-semibold">Libros terminados</h2>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                  Tu colección
+                </p>
+                <h2 className="mt-1 font-serif text-2xl font-semibold">
+                  Libros terminados
+                </h2>
               </div>
-              <span className="text-sm text-muted-foreground">{completedBooks.length} {completedBooks.length === 1 ? 'libro' : 'libros'}</span>
+              <span className="text-sm text-muted-foreground">
+                {completedBooks.length}{' '}
+                {completedBooks.length === 1 ? 'libro' : 'libros'}
+              </span>
             </div>
 
-            <div className="shelf-scene" aria-label={`Estantería con ${completedBooks.length} libros terminados`}>
+            <div
+              className="shelf-scene"
+              aria-label={`Estantería con ${completedBooks.length} libros terminados`}
+            >
               <Image
                 src="/estanteria-vacia.png"
                 alt="Estantería de madera"
@@ -659,7 +748,10 @@ export default function Home() {
                 priority
               />
               {SHELF_BOTTOMS.map((bottom, rowIndex) => {
-                const rowBooks = completedBooks.slice(rowIndex * 8, rowIndex * 8 + 8);
+                const rowBooks = completedBooks.slice(
+                  rowIndex * 8,
+                  rowIndex * 8 + 8,
+                );
                 if (!rowBooks.length) return null;
                 return (
                   <div
@@ -675,7 +767,8 @@ export default function Home() {
                           backgroundColor: book.color,
                           color: book.accent,
                           height: `${82 + ((index * 7 + rowIndex * 3) % 16)}%`,
-                          transform: index % 5 === 3 ? 'rotate(-1.8deg)' : undefined,
+                          transform:
+                            index % 5 === 3 ? 'rotate(-1.8deg)' : undefined,
                         }}
                         onClick={() => setSelectedShelfBookId(book.id)}
                         aria-label={`${book.title}, de ${book.author}, terminado`}
@@ -695,11 +788,8 @@ export default function Home() {
           </aside>
         </section>
 
-        <footer className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border/70 py-6 text-xs text-muted-foreground sm:flex-row">
+        <footer className="mt-10 border-t border-border/70 py-6 text-center text-xs text-muted-foreground">
           <p>Tu biblioteca se guarda de forma privada en este dispositivo.</p>
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={resetDemo}>
-            <RotateCcw data-icon="inline-start" /> Restaurar ejemplo
-          </Button>
         </footer>
       </div>
 
@@ -709,32 +799,74 @@ export default function Home() {
             <span className="mb-2 grid size-10 place-items-center rounded-xl bg-secondary text-primary">
               <BookMarked className="size-5" />
             </span>
-            <DialogTitle className="font-serif text-2xl">Añadir un libro</DialogTitle>
-            <DialogDescription>Introduce los datos básicos. Podrás empezar a cronometrar enseguida.</DialogDescription>
+            <DialogTitle className="font-serif text-2xl">
+              Añadir un libro
+            </DialogTitle>
+            <DialogDescription>
+              Introduce los datos básicos. Podrás empezar a cronometrar
+              enseguida.
+            </DialogDescription>
           </DialogHeader>
           <form id="add-book-form" className="grid gap-4" onSubmit={addBook}>
             <div className="grid gap-2">
               <Label htmlFor="book-title">Título</Label>
-              <Input id="book-title" name="title" placeholder="Ej. La amiga estupenda" required className="h-10" />
+              <Input
+                id="book-title"
+                name="title"
+                placeholder="Ej. La amiga estupenda"
+                required
+                className="h-10"
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="book-author">Autor o autora</Label>
-              <Input id="book-author" name="author" placeholder="Ej. Elena Ferrante" required className="h-10" />
+              <Input
+                id="book-author"
+                name="author"
+                placeholder="Ej. Elena Ferrante"
+                required
+                className="h-10"
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-2">
                 <Label htmlFor="book-pages">Páginas totales</Label>
-                <Input id="book-pages" name="totalPages" type="number" min="1" inputMode="numeric" placeholder="336" required className="h-10" />
+                <Input
+                  id="book-pages"
+                  name="totalPages"
+                  type="number"
+                  min="1"
+                  inputMode="numeric"
+                  placeholder="336"
+                  required
+                  className="h-10"
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="book-current-page">Página actual</Label>
-                <Input id="book-current-page" name="currentPage" type="number" min="0" inputMode="numeric" placeholder="0" className="h-10" />
+                <Input
+                  id="book-current-page"
+                  name="currentPage"
+                  type="number"
+                  min="0"
+                  inputMode="numeric"
+                  placeholder="0"
+                  className="h-10"
+                />
               </div>
             </div>
           </form>
           <DialogFooter className="-mx-6 -mb-6 px-6 py-5">
-            <Button variant="outline" type="button" onClick={() => setAddBookOpen(false)}>Cancelar</Button>
-            <Button type="submit" form="add-book-form"><Plus data-icon="inline-start" /> Añadir libro</Button>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setAddBookOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" form="add-book-form">
+              <Plus data-icon="inline-start" /> Añadir libro
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -745,17 +877,32 @@ export default function Home() {
           if (!open) resumePendingSession();
         }}
       >
-        <DialogContent className="max-w-md gap-5 rounded-3xl p-6" showCloseButton={false}>
+        <DialogContent
+          className="max-w-md gap-5 rounded-3xl p-6"
+          showCloseButton={false}
+        >
           <DialogHeader>
             <span className="mb-2 grid size-10 place-items-center rounded-xl bg-secondary text-primary">
               <Timer className="size-5" />
             </span>
-            <DialogTitle className="font-serif text-2xl">¡Buena sesión!</DialogTitle>
+            <DialogTitle className="font-serif text-2xl">
+              ¡Buena sesión!
+            </DialogTitle>
             <DialogDescription>
-              Has leído durante <strong className="text-foreground">{pendingSession ? formatReadingTime(pendingSession.durationSeconds) : ''}</strong>. ¿Cuántas páginas has avanzado?
+              Has leído durante{' '}
+              <strong className="text-foreground">
+                {pendingSession
+                  ? formatReadingTime(pendingSession.durationSeconds)
+                  : ''}
+              </strong>
+              . ¿Cuántas páginas has avanzado?
             </DialogDescription>
           </DialogHeader>
-          <form id="save-session-form" className="grid gap-3" onSubmit={saveSession}>
+          <form
+            id="save-session-form"
+            className="grid gap-3"
+            onSubmit={saveSession}
+          >
             <Label htmlFor="session-pages">Páginas leídas en esta sesión</Label>
             <Input
               id="session-pages"
@@ -763,23 +910,48 @@ export default function Home() {
               type="number"
               inputMode="numeric"
               min="1"
-              max={currentBook ? currentBook.totalPages - currentBook.currentPage : undefined}
-              defaultValue={currentBook ? Math.min(10, currentBook.totalPages - currentBook.currentPage) : 1}
+              max={
+                currentBook
+                  ? currentBook.totalPages - currentBook.currentPage
+                  : undefined
+              }
+              defaultValue={
+                currentBook
+                  ? Math.min(
+                      10,
+                      currentBook.totalPages - currentBook.currentPage,
+                    )
+                  : 1
+              }
               required
               className="h-14 text-center font-serif text-2xl font-semibold"
             />
             {currentBook && (
-              <p className="text-center text-xs text-muted-foreground">Te quedan {currentBook.totalPages - currentBook.currentPage} páginas.</p>
+              <p className="text-center text-xs text-muted-foreground">
+                Te quedan {currentBook.totalPages - currentBook.currentPage}{' '}
+                páginas.
+              </p>
             )}
           </form>
           <DialogFooter className="-mx-6 -mb-6 px-6 py-5">
-            <Button variant="outline" type="button" onClick={resumePendingSession}>Seguir leyendo</Button>
-            <Button type="submit" form="save-session-form"><CheckCircle2 data-icon="inline-start" /> Guardar sesión</Button>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={resumePendingSession}
+            >
+              Seguir leyendo
+            </Button>
+            <Button type="submit" form="save-session-form">
+              <CheckCircle2 data-icon="inline-start" /> Guardar sesión
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(selectedShelfBook)} onOpenChange={(open) => !open && setSelectedShelfBookId(null)}>
+      <Dialog
+        open={Boolean(selectedShelfBook)}
+        onOpenChange={(open) => !open && setSelectedShelfBookId(null)}
+      >
         <DialogContent className="max-w-md gap-5 rounded-3xl p-6">
           {selectedShelfBook && (
             <>
@@ -788,29 +960,43 @@ export default function Home() {
                   className="mb-3 h-24 w-16 rounded-sm shadow-md"
                   style={{ backgroundColor: selectedShelfBook.color }}
                 />
-                <DialogTitle className="font-serif text-2xl">{selectedShelfBook.title}</DialogTitle>
-                <DialogDescription>{selectedShelfBook.author}</DialogDescription>
+                <DialogTitle className="font-serif text-2xl">
+                  {selectedShelfBook.title}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedShelfBook.author}
+                </DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-2xl bg-secondary/70 p-4">
                   <BookOpen className="mb-3 size-4 text-primary" />
                   <p className="text-xs text-muted-foreground">Extensión</p>
-                  <p className="mt-1 font-serif text-lg font-semibold">{selectedShelfBook.totalPages} páginas</p>
+                  <p className="mt-1 font-serif text-lg font-semibold">
+                    {selectedShelfBook.totalPages} páginas
+                  </p>
                 </div>
                 <div className="rounded-2xl bg-secondary/70 p-4">
                   <CalendarDays className="mb-3 size-4 text-primary" />
                   <p className="text-xs text-muted-foreground">Terminado</p>
                   <p className="mt-1 font-serif text-lg font-semibold">
-                    {selectedShelfBook.completedAt ? formatFullDate(selectedShelfBook.completedAt) : 'Completado'}
+                    {selectedShelfBook.completedAt
+                      ? formatFullDate(selectedShelfBook.completedAt)
+                      : 'Completado'}
                   </p>
                 </div>
               </div>
               <p className="text-sm leading-6 text-muted-foreground">
-                Tiempo registrado: <strong className="text-foreground">
+                Tiempo registrado:{' '}
+                <strong className="text-foreground">
                   {formatReadingTime(
                     sessions
-                      .filter((session) => session.bookId === selectedShelfBook.id)
-                      .reduce((sum, session) => sum + session.durationSeconds, 0),
+                      .filter(
+                        (session) => session.bookId === selectedShelfBook.id,
+                      )
+                      .reduce(
+                        (sum, session) => sum + session.durationSeconds,
+                        0,
+                      ),
                   )}
                 </strong>
               </p>
