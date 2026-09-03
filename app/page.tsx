@@ -9,6 +9,7 @@ import {
 } from 'react';
 import Image from 'next/image';
 import {
+  BarChart3,
   BookMarked,
   BookOpen,
   CalendarDays,
@@ -24,10 +25,26 @@ import {
   Target,
   Timer,
   Trash2,
+  Trophy,
 } from 'lucide-react';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from '@/components/ui/chart';
 import {
   Dialog,
   DialogContent,
@@ -82,6 +99,19 @@ type PendingSession = {
   durationSeconds: number;
 };
 
+type SessionSummary = {
+  bookId: string;
+  bookTitle: string;
+  totalPages: number;
+  currentPage: number;
+  pagesRead: number;
+  durationSeconds: number;
+  pagesPerHour: number;
+  remainingPages: number;
+  remainingSeconds: number;
+  completed: boolean;
+};
+
 const STORAGE_KEY = 'mi-estanteria-v1';
 const BOOK_COLORS = [
   ['#304c3d', '#f5df9d'],
@@ -101,6 +131,18 @@ const DEMO_BOOK_IDS = new Set([
   'demo-persuasion',
   'demo-ficciones',
 ]);
+const PAGES_CHART_CONFIG = {
+  pages: {
+    label: 'Páginas',
+    theme: { light: '#2e5945', dark: '#93b7a4' },
+  },
+} satisfies ChartConfig;
+const MINUTES_CHART_CONFIG = {
+  minutes: {
+    label: 'Minutos',
+    theme: { light: '#b07b38', dark: '#e4bf79' },
+  },
+} satisfies ChartConfig;
 
 function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -164,11 +206,18 @@ function formatTimer(totalSeconds: number) {
 function formatReadingTime(totalSeconds: number) {
   if (totalSeconds <= 0) return '0 min';
   if (totalSeconds < 60) return `${Math.max(1, Math.round(totalSeconds))} s`;
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.round((totalSeconds % 3600) / 60);
+  const totalMinutes = Math.max(1, Math.round(totalSeconds / 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
   if (!hours) return `${minutes} min`;
   if (!minutes) return `${hours} h`;
   return `${hours} h ${minutes} min`;
+}
+
+function formatPagesPerHour(pagesPerHour: number) {
+  return new Intl.NumberFormat('es-ES', {
+    maximumFractionDigits: pagesPerHour < 10 ? 1 : 0,
+  }).format(pagesPerHour);
 }
 
 function localDateKey(value: string | number | Date) {
@@ -235,6 +284,9 @@ export default function Home() {
   const [sessions, setSessions] = useState<ReadingSession[]>([]);
   const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null);
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(
+    null,
+  );
+  const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(
     null,
   );
   const [selectedBookId, setSelectedBookId] = useState<string>('');
@@ -371,6 +423,63 @@ export default function Home() {
       );
     })
     .reduce((sum, session) => sum + session.pagesRead, 0);
+  const lastSevenDays = useMemo(() => {
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date();
+      date.setHours(12, 0, 0, 0);
+      date.setDate(date.getDate() - (6 - index));
+      const dateKey = localDateKey(date);
+      const daySessions = sessions.filter(
+        (session) => localDateKey(session.endedAt) === dateKey,
+      );
+      const seconds = daySessions.reduce(
+        (sum, session) => sum + session.durationSeconds,
+        0,
+      );
+      const weekday = new Intl.DateTimeFormat('es-ES', {
+        weekday: 'short',
+      })
+        .format(date)
+        .replace('.', '');
+
+      return {
+        dateKey,
+        day: `${weekday} ${date.getDate()}`,
+        pages: daySessions.reduce((sum, session) => sum + session.pagesRead, 0),
+        minutes: Math.round(seconds / 6) / 10,
+      };
+    });
+  }, [sessions]);
+  const booksReadThisYear = completedBooks.filter((book) => {
+    if (!book.completedAt) return false;
+    return new Date(book.completedAt).getFullYear() === now.getFullYear();
+  }).length;
+  const booksReadThisMonth = completedBooks.filter((book) => {
+    if (!book.completedAt) return false;
+    const completedAt = new Date(book.completedAt);
+    return (
+      completedAt.getFullYear() === now.getFullYear() &&
+      completedAt.getMonth() === now.getMonth()
+    );
+  }).length;
+  const currentMonthName = new Intl.DateTimeFormat('es-ES', {
+    month: 'long',
+  }).format(now);
+  const readingTimeRanking = useMemo(
+    () =>
+      completedBooks
+        .map((book) => ({
+          book,
+          durationSeconds: sessions
+            .filter((session) => session.bookId === book.id)
+            .reduce((sum, session) => sum + session.durationSeconds, 0),
+        }))
+        .filter((item) => item.durationSeconds > 0)
+        .sort((a, b) => b.durationSeconds - a.durationSeconds)
+        .slice(0, 5),
+    [completedBooks, sessions],
+  );
+  const longestReadingTime = readingTimeRanking[0]?.durationSeconds ?? 0;
   const selectedShelfBook = books.find(
     (book) => book.id === selectedShelfBookId,
   );
@@ -424,6 +533,8 @@ export default function Home() {
     );
     const validPages = nextPage - book.currentPage;
     const completed = nextPage >= book.totalPages;
+    const remainingPages = Math.max(0, book.totalPages - nextPage);
+    const pagesPerHour = (validPages * 3600) / pendingSession.durationSeconds;
     const endedAtIso = new Date(pendingSession.endedAt).toISOString();
 
     setSessions((current) => [
@@ -452,18 +563,33 @@ export default function Home() {
     if (completed) {
       const nextReadingBook = readingBooks.find((item) => item.id !== book.id);
       setSelectedBookId(nextReadingBook?.id ?? '');
+    }
+    setSessionSummary({
+      bookId: book.id,
+      bookTitle: book.title,
+      totalPages: book.totalPages,
+      currentPage: nextPage,
+      pagesRead: validPages,
+      durationSeconds: pendingSession.durationSeconds,
+      pagesPerHour,
+      remainingPages,
+      remainingSeconds:
+        remainingPages > 0 ? (remainingPages / pagesPerHour) * 3600 : 0,
+      completed,
+    });
+    setPendingSession(null);
+  }
+
+  function closeSessionSummary() {
+    const shouldShowShelf = sessionSummary?.completed;
+    setSessionSummary(null);
+    if (shouldShowShelf) {
       window.setTimeout(() => {
         document
           .querySelector('#estanteria')
           ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 250);
-      setNotice(`¡${book.title} ya está en tu estantería!`);
-    } else {
-      setNotice(
-        `Sesión guardada: ${validPages} páginas en ${formatReadingTime(pendingSession.durationSeconds)}.`,
-      );
+      }, 150);
     }
-    setPendingSession(null);
   }
 
   async function handleCoverChange(event: ChangeEvent<HTMLInputElement>) {
@@ -587,6 +713,12 @@ export default function Home() {
               href="#estanteria"
             >
               Estantería
+            </a>
+            <a
+              className="rounded-full px-4 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              href="#estadisticas"
+            >
+              Estadísticas
             </a>
           </nav>
           <Button
@@ -956,6 +1088,264 @@ export default function Home() {
           </aside>
         </section>
 
+        <section
+          id="estadisticas"
+          className="mt-10 scroll-mt-24"
+          aria-labelledby="statistics-title"
+        >
+          <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+            <div>
+              <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-primary">
+                <BarChart3 className="size-3.5" /> Tu ritmo
+              </p>
+              <h2
+                id="statistics-title"
+                className="mt-2 font-serif text-3xl font-semibold tracking-tight sm:text-4xl"
+              >
+                Estadísticas de lectura
+              </h2>
+            </div>
+            <p className="max-w-md text-sm leading-6 text-muted-foreground">
+              Una mirada a tus últimos siete días y a los libros que has
+              terminado.
+            </p>
+          </div>
+
+          <div className="mb-6 grid gap-4 sm:grid-cols-2">
+            <article className="relative overflow-hidden rounded-[24px] border border-border bg-primary p-6 text-primary-foreground shadow-[0_14px_36px_rgba(44,77,59,0.13)]">
+              <span className="absolute -right-10 -top-14 size-36 rounded-full border border-white/15" />
+              <CalendarDays className="mb-8 size-5 text-[#eadb9c]" />
+              <p className="font-serif text-5xl font-semibold tabular-nums">
+                {booksReadThisYear}
+              </p>
+              <p className="mt-2 text-sm text-primary-foreground/75">
+                {booksReadThisYear === 1
+                  ? 'Libro leído este año'
+                  : 'Libros leídos este año'}
+              </p>
+            </article>
+            <article className="relative overflow-hidden rounded-[24px] border border-border bg-card p-6 shadow-[0_14px_36px_rgba(61,43,31,0.06)]">
+              <span className="absolute -right-10 -top-14 size-36 rounded-full border border-primary/10" />
+              <BookOpen className="mb-8 size-5 text-primary" />
+              <p className="font-serif text-5xl font-semibold tabular-nums">
+                {booksReadThisMonth}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {booksReadThisMonth === 1
+                  ? `Libro leído en ${currentMonthName}`
+                  : `Libros leídos en ${currentMonthName}`}
+              </p>
+            </article>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <article className="min-w-0 rounded-[24px] border border-border bg-card p-5 shadow-[0_14px_36px_rgba(61,43,31,0.06)] sm:p-6">
+              <div className="mb-5">
+                <h3 className="font-serif text-2xl font-semibold">
+                  Páginas leídas
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Totales diarios · últimos 7 días
+                </p>
+              </div>
+              <ChartContainer
+                config={PAGES_CHART_CONFIG}
+                className="h-[250px] w-full"
+              >
+                <BarChart
+                  accessibilityLayer
+                  data={lastSevenDays}
+                  margin={{ top: 8, right: 4, left: -18, bottom: 0 }}
+                >
+                  <CartesianGrid vertical={false} strokeDasharray="4 4" />
+                  <XAxis
+                    dataKey="day"
+                    interval={0}
+                    tick={{ fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={10}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                  />
+                  <ChartTooltip
+                    cursor={{ fill: 'var(--muted)', opacity: 0.55 }}
+                    content={<ChartTooltipContent />}
+                  />
+                  <Bar
+                    dataKey="pages"
+                    fill="var(--color-pages)"
+                    radius={[7, 7, 2, 2]}
+                    maxBarSize={38}
+                  />
+                </BarChart>
+              </ChartContainer>
+            </article>
+
+            <article className="min-w-0 rounded-[24px] border border-border bg-card p-5 shadow-[0_14px_36px_rgba(61,43,31,0.06)] sm:p-6">
+              <div className="mb-5">
+                <h3 className="font-serif text-2xl font-semibold">
+                  Minutos de lectura
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Tiempo diario · últimos 7 días
+                </p>
+              </div>
+              <ChartContainer
+                config={MINUTES_CHART_CONFIG}
+                className="h-[250px] w-full"
+              >
+                <AreaChart
+                  accessibilityLayer
+                  data={lastSevenDays}
+                  margin={{ top: 8, right: 4, left: -18, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient
+                      id="readingMinutesFill"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor="var(--color-minutes)"
+                        stopOpacity={0.3}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="var(--color-minutes)"
+                        stopOpacity={0.02}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="4 4" />
+                  <XAxis
+                    dataKey="day"
+                    interval={0}
+                    tick={{ fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={10}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                  />
+                  <ChartTooltip
+                    cursor={{ stroke: 'var(--border)' }}
+                    content={<ChartTooltipContent />}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="minutes"
+                    stroke="var(--color-minutes)"
+                    strokeWidth={2.5}
+                    fill="url(#readingMinutesFill)"
+                    dot={{ fill: 'var(--color-minutes)', r: 3 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </AreaChart>
+              </ChartContainer>
+            </article>
+          </div>
+
+          <article className="mt-6 rounded-[24px] border border-border bg-card p-5 shadow-[0_14px_36px_rgba(61,43,31,0.06)] sm:p-6">
+            <div className="mb-6 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                  Top 5
+                </p>
+                <h3 className="mt-1 font-serif text-2xl font-semibold">
+                  Libros con más tiempo de lectura
+                </h3>
+              </div>
+              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-accent text-accent-foreground">
+                <Trophy className="size-5" />
+              </span>
+            </div>
+
+            {readingTimeRanking.length ? (
+              <ol className="grid gap-3">
+                {readingTimeRanking.map(({ book, durationSeconds }, index) => (
+                  <li
+                    key={book.id}
+                    className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl bg-secondary/55 p-3 sm:gap-4 sm:p-4"
+                  >
+                    <span
+                      className={`grid size-8 place-items-center rounded-full text-sm font-bold ${index === 0 ? 'bg-accent text-accent-foreground' : 'bg-card text-muted-foreground'}`}
+                      aria-label={`Puesto ${index + 1}`}
+                    >
+                      {index + 1}
+                    </span>
+                    <span
+                      className="relative h-14 w-10 overflow-hidden rounded-sm shadow-sm"
+                      style={{ backgroundColor: book.color }}
+                    >
+                      {book.coverImage ? (
+                        <Image
+                          src={book.coverImage}
+                          alt=""
+                          fill
+                          sizes="40px"
+                          className="object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <span
+                          className="absolute inset-1.5 overflow-hidden font-serif text-[7px] leading-tight"
+                          style={{ color: book.accent }}
+                        >
+                          {book.title}
+                        </span>
+                      )}
+                    </span>
+                    <span className="min-w-0">
+                      <strong className="block truncate font-serif text-lg">
+                        {book.title}
+                      </strong>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {book.author}
+                      </span>
+                      <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-border/70">
+                        <span
+                          className="block h-full rounded-full bg-primary"
+                          style={{
+                            width: `${Math.max(4, (durationSeconds / longestReadingTime) * 100)}%`,
+                          }}
+                        />
+                      </span>
+                    </span>
+                    <strong className="whitespace-nowrap text-right text-sm tabular-nums sm:text-base">
+                      {formatReadingTime(durationSeconds)}
+                    </strong>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <div className="grid min-h-40 place-items-center rounded-2xl border border-dashed border-border bg-secondary/25 p-6 text-center">
+                <div>
+                  <Trophy className="mx-auto mb-3 size-6 text-muted-foreground" />
+                  <p className="font-serif text-lg font-semibold">
+                    Tu ranking aparecerá aquí
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Termina libros con tiempo registrado para comparar tus
+                    lecturas.
+                  </p>
+                </div>
+              </div>
+            )}
+          </article>
+        </section>
+
         <footer className="mt-10 border-t border-border/70 py-6 text-center text-xs text-muted-foreground">
           <p>Tu biblioteca se guarda de forma privada en este dispositivo.</p>
         </footer>
@@ -1159,6 +1549,11 @@ export default function Home() {
           >
             <Label htmlFor="session-current-page">Página actual</Label>
             <Input
+              key={
+                pendingSession
+                  ? `${pendingSession.bookId}-${pendingSession.startedAt}`
+                  : 'no-pending-session'
+              }
               id="session-current-page"
               name="currentPage"
               type="number"
@@ -1192,9 +1587,119 @@ export default function Home() {
               Seguir leyendo
             </Button>
             <Button type="submit" form="save-session-form">
-              <CheckCircle2 data-icon="inline-start" /> Guardar sesión
+              <CheckCircle2 data-icon="inline-start" /> Aceptar
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(sessionSummary)}
+        onOpenChange={(open) => !open && closeSessionSummary()}
+      >
+        <DialogContent
+          className="max-h-[calc(100dvh-2rem)] max-w-xl gap-0 overflow-y-auto rounded-3xl p-0"
+          showCloseButton={false}
+        >
+          {sessionSummary && (
+            <>
+              <div className="bg-primary px-6 py-7 text-primary-foreground sm:px-8">
+                <span className="mb-4 grid size-11 place-items-center rounded-2xl bg-white/15">
+                  <CheckCircle2 className="size-5" />
+                </span>
+                <DialogHeader className="gap-2 text-left">
+                  <DialogTitle className="font-serif text-3xl text-primary-foreground">
+                    {sessionSummary.completed
+                      ? '¡Libro terminado!'
+                      : 'Así ha ido tu lectura'}
+                  </DialogTitle>
+                  <DialogDescription className="text-primary-foreground/75">
+                    Has avanzado {sessionSummary.pagesRead}{' '}
+                    {sessionSummary.pagesRead === 1 ? 'página' : 'páginas'} de{' '}
+                    <strong className="text-primary-foreground">
+                      {sessionSummary.bookTitle}
+                    </strong>{' '}
+                    en {formatReadingTime(sessionSummary.durationSeconds)}.
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+
+              <div className="grid gap-5 p-6 sm:p-8">
+                <Progress
+                  value={Math.round(
+                    (sessionSummary.currentPage / sessionSummary.totalPages) *
+                      100,
+                  )}
+                  locale="es-ES"
+                  className="gap-2"
+                >
+                  <ProgressLabel className="text-xs text-muted-foreground">
+                    Página {sessionSummary.currentPage} de{' '}
+                    {sessionSummary.totalPages}
+                  </ProgressLabel>
+                  <ProgressValue className="text-xs" />
+                </Progress>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl bg-secondary/70 p-4">
+                    <Timer className="mb-4 size-4 text-primary" />
+                    <p className="text-xs text-muted-foreground">
+                      Tu velocidad
+                    </p>
+                    <p className="mt-1 font-serif text-xl font-semibold">
+                      {formatPagesPerHour(sessionSummary.pagesPerHour)} pág./h
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      en esta sesión
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-secondary/70 p-4">
+                    <BookOpen className="mb-4 size-4 text-primary" />
+                    <p className="text-xs text-muted-foreground">Te quedan</p>
+                    <p className="mt-1 font-serif text-xl font-semibold">
+                      {sessionSummary.remainingPages}{' '}
+                      {sessionSummary.remainingPages === 1
+                        ? 'página'
+                        : 'páginas'}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      para terminar
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-secondary/70 p-4">
+                    <Clock3 className="mb-4 size-4 text-primary" />
+                    <p className="text-xs text-muted-foreground">
+                      Tiempo aproximado
+                    </p>
+                    <p className="mt-1 font-serif text-xl font-semibold">
+                      {sessionSummary.completed
+                        ? 'Completado'
+                        : formatReadingTime(sessionSummary.remainingSeconds)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      a tu ritmo de hoy
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-center text-xs leading-5 text-muted-foreground">
+                  La estimación se actualizará después de cada sesión según tu
+                  ritmo de lectura.
+                </p>
+
+                <Button
+                  size="lg"
+                  className="h-12 w-full rounded-xl"
+                  onClick={closeSessionSummary}
+                >
+                  {sessionSummary.completed
+                    ? 'Ver en mi estantería'
+                    : 'Continuar'}
+                  <ChevronRight data-icon="inline-end" />
+                </Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
