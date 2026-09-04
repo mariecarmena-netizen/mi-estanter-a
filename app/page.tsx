@@ -276,6 +276,7 @@ function getBookEstimate(book: Book, sessions: ReadingSession[]) {
     daysRemaining,
     finishDate,
     secondsPerPage: measuredSeconds / measuredPages,
+    pagesPerHour: (measuredPages * 3600) / measuredSeconds,
   };
 }
 
@@ -804,7 +805,7 @@ export default function Home() {
                         >
                           {activeTimer ? 'Leyendo ahora' : 'Próxima lectura'}
                         </Badge>
-                        <h2 className="max-w-xl truncate font-serif text-3xl font-medium tracking-tight">
+                        <h2 className="max-w-xl break-words font-serif text-3xl font-medium leading-tight tracking-tight">
                           {currentBook.title}
                         </h2>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -833,7 +834,7 @@ export default function Home() {
                       </ProgressValue>
                     </Progress>
 
-                    <div className="my-8 grid grid-cols-2 gap-3">
+                    <div className="my-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
                       <div className="rounded-2xl bg-secondary/70 p-4">
                         <Clock3 className="mb-4 size-4 text-primary" />
                         <p className="text-xs text-muted-foreground">
@@ -855,6 +856,17 @@ export default function Home() {
                         <p className="mt-1 font-serif text-xl font-semibold">
                           {currentEstimate
                             ? formatShortDate(currentEstimate.finishDate)
+                            : 'Tras 1ª sesión'}
+                        </p>
+                      </div>
+                      <div className="col-span-2 rounded-2xl bg-secondary/70 p-4 sm:col-span-1">
+                        <Timer className="mb-4 size-4 text-primary" />
+                        <p className="text-xs text-muted-foreground">
+                          Velocidad media
+                        </p>
+                        <p className="mt-1 font-serif text-xl font-semibold">
+                          {currentEstimate
+                            ? `${formatPagesPerHour(currentEstimate.pagesPerHour)} pág./h`
                             : 'Tras 1ª sesión'}
                         </p>
                       </div>
@@ -989,7 +1001,7 @@ export default function Home() {
                           )}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <strong className="block truncate font-serif text-lg">
+                          <strong className="block break-words font-serif text-lg leading-tight">
                             {book.title}
                           </strong>
                           <span className="mt-1 block text-xs text-muted-foreground">
