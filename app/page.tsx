@@ -75,6 +75,7 @@ type Book = {
   isbn?: string;
   coverImage?: string;
   createdAt: string;
+  readingStartedAt?: string | null;
   completedAt?: string;
 };
 
@@ -238,6 +239,31 @@ function formatFullDate(value: string | number | Date) {
     month: 'long',
     year: 'numeric',
   }).format(new Date(value));
+}
+
+function parseReadingStartDate(value: string) {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!dateOnly) return new Date(value);
+  return new Date(
+    Number(dateOnly[1]),
+    Number(dateOnly[2]) - 1,
+    Number(dateOnly[3]),
+  );
+}
+
+function getReadingDayCount(value: string, today = new Date()) {
+  const startedAt = parseReadingStartDate(value);
+  const startDay = Date.UTC(
+    startedAt.getFullYear(),
+    startedAt.getMonth(),
+    startedAt.getDate(),
+  );
+  const currentDay = Date.UTC(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
+  return Math.max(1, Math.floor((currentDay - startDay) / 86_400_000) + 1);
 }
 
 function getBookEstimate(book: Book, sessions: ReadingSession[]) {
@@ -409,21 +435,41 @@ export default function Home() {
         Math.round((currentBook.currentPage / currentBook.totalPages) * 100),
       )
     : 0;
+  const currentBookReadingSeconds = currentBook
+    ? sessions
+        .filter((session) => session.bookId === currentBook.id)
+        .reduce((sum, session) => sum + session.durationSeconds, 0) +
+      (activeTimer?.bookId === currentBook.id ? elapsedSeconds : 0)
+    : 0;
+  const currentBookStartedAt = currentBook
+    ? currentBook.readingStartedAt === undefined
+      ? currentBook.createdAt
+      : currentBook.readingStartedAt
+    : null;
+  const currentBookReadingDays = currentBookStartedAt
+    ? getReadingDayCount(currentBookStartedAt)
+    : 0;
 
   const todayKey = localDateKey(new Date());
   const todaySeconds = sessions
     .filter((session) => localDateKey(session.endedAt) === todayKey)
     .reduce((sum, session) => sum + session.durationSeconds, 0);
   const now = new Date();
-  const monthPages = sessions
-    .filter((session) => {
-      const endedAt = new Date(session.endedAt);
-      return (
-        endedAt.getFullYear() === now.getFullYear() &&
-        endedAt.getMonth() === now.getMonth()
-      );
-    })
-    .reduce((sum, session) => sum + session.pagesRead, 0);
+  const currentMonthSessions = sessions.filter((session) => {
+    const endedAt = new Date(session.endedAt);
+    return (
+      endedAt.getFullYear() === now.getFullYear() &&
+      endedAt.getMonth() === now.getMonth()
+    );
+  });
+  const monthPages = currentMonthSessions.reduce(
+    (sum, session) => sum + session.pagesRead,
+    0,
+  );
+  const monthSeconds = currentMonthSessions.reduce(
+    (sum, session) => sum + session.durationSeconds,
+    0,
+  );
   const lastSevenDays = useMemo(() => {
     return Array.from({ length: 7 }, (_, index) => {
       const date = new Date();
@@ -486,9 +532,17 @@ export default function Home() {
   );
 
   function startReading(bookId: string) {
+    const startedAt = Date.now();
     setSelectedBookId(bookId);
-    setTick(Date.now());
-    setActiveTimer({ bookId, startedAt: Date.now() });
+    setTick(startedAt);
+    setActiveTimer({ bookId, startedAt });
+    setBooks((current) =>
+      current.map((book) =>
+        book.id === bookId && book.readingStartedAt === null
+          ? { ...book, readingStartedAt: new Date(startedAt).toISOString() }
+          : book,
+      ),
+    );
     setNotice('Cronómetro iniciado. Que disfrutes la lectura.');
   }
 
@@ -668,6 +722,7 @@ export default function Home() {
       isbn: isbn || undefined,
       coverImage: coverImage || undefined,
       createdAt: new Date().toISOString(),
+      readingStartedAt: null,
       completedAt: completed ? new Date().toISOString() : undefined,
     };
 
@@ -835,6 +890,39 @@ export default function Home() {
                     </Progress>
 
                     <div className="my-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl bg-secondary/70 p-4">
+                        <Timer className="mb-4 size-4 text-primary" />
+                        <p className="text-xs text-muted-foreground">
+                          Tiempo leído
+                        </p>
+                        <p className="mt-1 font-serif text-xl font-semibold">
+                          {formatReadingTime(currentBookReadingSeconds)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-secondary/70 p-4">
+                        <CalendarDays className="mb-4 size-4 text-primary" />
+                        <p className="text-xs text-muted-foreground">
+                          Empezaste el
+                        </p>
+                        <p className="mt-1 font-serif text-xl font-semibold">
+                          {currentBookStartedAt
+                            ? formatFullDate(
+                                parseReadingStartDate(currentBookStartedAt),
+                              )
+                            : 'Aún no'}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-secondary/70 p-4">
+                        <BookMarked className="mb-4 size-4 text-primary" />
+                        <p className="text-xs text-muted-foreground">
+                          Días leyendo
+                        </p>
+                        <p className="mt-1 font-serif text-xl font-semibold">
+                          {currentBookStartedAt
+                            ? `${currentBookReadingDays} ${currentBookReadingDays === 1 ? 'día' : 'días'}`
+                            : 'Sin empezar'}
+                        </p>
+                      </div>
                       <div className="rounded-2xl bg-secondary/70 p-4">
                         <Clock3 className="mb-4 size-4 text-primary" />
                         <p className="text-xs text-muted-foreground">
@@ -1123,7 +1211,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="mb-6 grid gap-4 sm:grid-cols-2">
+          <div className="mb-6 grid gap-4 sm:grid-cols-2 md:grid-cols-3">
             <article className="relative overflow-hidden rounded-[24px] border border-border bg-primary p-6 text-primary-foreground shadow-[0_14px_36px_rgba(44,77,59,0.13)]">
               <span className="absolute -right-10 -top-14 size-36 rounded-full border border-white/15" />
               <CalendarDays className="mb-8 size-5 text-[#eadb9c]" />
@@ -1146,6 +1234,16 @@ export default function Home() {
                 {booksReadThisMonth === 1
                   ? `Libro leído en ${currentMonthName}`
                   : `Libros leídos en ${currentMonthName}`}
+              </p>
+            </article>
+            <article className="relative overflow-hidden rounded-[24px] border border-border bg-card p-6 shadow-[0_14px_36px_rgba(61,43,31,0.06)] sm:col-span-2 md:col-span-1">
+              <span className="absolute -right-10 -top-14 size-36 rounded-full border border-primary/10" />
+              <Clock3 className="mb-8 size-5 text-primary" />
+              <p className="font-serif text-5xl font-semibold tabular-nums">
+                {formatReadingTime(monthSeconds)}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Tiempo leído en {currentMonthName}
               </p>
             </article>
           </div>
